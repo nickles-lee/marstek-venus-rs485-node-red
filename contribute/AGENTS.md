@@ -64,12 +64,12 @@ Increments the version across all relevant files.
 |------|-------------|
 | `node-red/01 start-flow.json` | `label` of first object |
 | `node-red/02 strategy-*.json` | `label` of first object (all 7 files) |
+| `node-red/all-flows-in-one-file.json` | All version labels (after verifying current version matches) |
 | `home assistant/dashboard.yaml` | Version string in the markdown content card |
 
 **Files NOT updated by this script (require manual action):**
 | File | Why |
 |------|-----|
-| `node-red/all-flows-in-one-file.json` | Requires full re-export; confirm with user first |
 | `RELEASE_NOTES.md` | Requires human-authored release description |
 | `node-red/00 master-switch-flow.json` | No version label |
 | `node-red/00 presets-switch-flow.json` | No version label |
@@ -85,10 +85,9 @@ Increments the version across all relevant files.
 
 ```
 1.  User decides bump type (patch / minor / major)
-2.  Run:  .\contribute\bump-version.ps1 -Type <type>
-3.  Run:  .\contribute\check.ps1
-4.  User confirms / updates all-flows-in-one-file.json
-5.  User authors RELEASE_NOTES.md entry
-6.  Run:  .\contribute\check.ps1   (should now pass check 5 as well)
-7.  Stage, commit, push per copilot-instructions
+2.  Run:  .\contribute\check.ps1                     (validate current state)
+3.  Run:  .\contribute\bump-version.ps1 -Type <type>
+4.  User authors RELEASE_NOTES.md entry
+5.  Run:  .\contribute\check.ps1                     (verify bump + release notes)
+6.  Stage, commit, push per copilot-instructions
 ```

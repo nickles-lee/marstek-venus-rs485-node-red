@@ -7,7 +7,11 @@
     the new version according to the requested bump type, then updates:
       - node-red/01 start-flow.json              (label)
       - node-red/02 strategy-*.json              (label of first object)
+      - node-red/all-flows-in-one-file.json      (all version labels)
       - home assistant/dashboard.yaml            (version string in content card)
+
+    Before bumping, verifies that all-flows-in-one-file.json contains the
+    same current version as the individual flow files.
 
     Use -DryRun to preview all changes without writing any files.
 
@@ -98,6 +102,27 @@ Write-Host "  $Type bump: v$oldVersion  -->  v$newVersion" -ForegroundColor $(if
 Write-Host ""
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Pre-flight: verify all-flows-in-one-file.json has the current version
+# ─────────────────────────────────────────────────────────────────────────────
+$allFlowsPath = Join-Path $NR 'all-flows-in-one-file.json'
+$allFlowsRaw = Get-Content $allFlowsPath -Raw
+$allFlowsJson = $allFlowsRaw | ConvertFrom-Json
+
+# Collect versioned tab labels from all-flows-in-one-file.json
+$allFlowsTabs = @($allFlowsJson) | Where-Object { $_.type -eq 'tab' -and $_.label -match 'v(\d+\.\d+\.\d+)' }
+foreach ($tab in $allFlowsTabs) {
+    if ($tab.label -match 'v(\d+\.\d+\.\d+)') {
+        $tabVersion = $matches[1]
+        if ($tabVersion -ne $oldVersion) {
+            Write-Error "all-flows-in-one-file.json tab '$($tab.label)' has version v$tabVersion but expected v$oldVersion. Re-export your flows first."
+            exit 1
+        }
+    }
+}
+Write-Host "  [ OK  ] all-flows-in-one-file.json: all versioned tabs match v$oldVersion" -ForegroundColor Green
+Write-Host ""
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Update node-red/01 start-flow.json
 # ─────────────────────────────────────────────────────────────────────────────
 $newStartRaw = $startRaw -replace "v$([regex]::Escape($oldVersion))", "v$newVersion"
@@ -121,6 +146,17 @@ foreach ($file in $strategyFiles) {
     else {
         Write-Skip "$($file.Name) (no change)"
     }
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Update node-red/all-flows-in-one-file.json
+# ─────────────────────────────────────────────────────────────────────────────
+$newAllFlowsRaw = $allFlowsRaw -replace "v$([regex]::Escape($oldVersion))", "v$newVersion"
+if ($newAllFlowsRaw -ne $allFlowsRaw) {
+    Save-File $allFlowsPath $newAllFlowsRaw
+}
+else {
+    Write-Skip "all-flows-in-one-file.json (no change)"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -150,9 +186,8 @@ if ($DryRun) {
 else {
     Write-Host "  Done. Version bumped from v$oldVersion to v$newVersion." -ForegroundColor Green
     Write-Host "  Remember to:" -ForegroundColor White
-    Write-Host "    1. Update all-flows-in-one-file.json with the new flow versions." -ForegroundColor White
-    Write-Host "    2. Add a '## $newVersion' section to RELEASE_NOTES.md." -ForegroundColor White
-    Write-Host "    3. Run .\contribute\check.ps1 to verify all files are consistent." -ForegroundColor White
+    Write-Host "    1. Add a '## $newVersion' section to RELEASE_NOTES.md." -ForegroundColor White
+    Write-Host "    2. Run .\contribute\check.ps1 to verify all files are consistent." -ForegroundColor White
 }
 Write-Host "=====================================================" -ForegroundColor White
 Write-Host ""
