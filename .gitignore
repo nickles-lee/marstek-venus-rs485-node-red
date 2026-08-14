@@ -3,17 +3,20 @@ RELEASE_NOTES_TEMP.txt
 
 # Ignore notes and development files
 notes/
+temp/
 template_sensor_bob_battery_dashboard.yaml
+
+# Ignore SASS cache files
+docs/.sass-cache
+
+# macOS metadata
 .DS_Store
 
 # Ignore opencode local workspace
 .opencode/
 
-docs/.sass-cache
-
 # Node.js dependencies and test output
 node_modules/
-
 coverage/
 
 # Claude Code per-user state — keep local; commands/skills/agents/settings.json are shared

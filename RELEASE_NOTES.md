@@ -1,6 +1,130 @@
 # Release Notes
 All releases follow Semantic Versioning (SemVer). Every release provides a fresh `home assistant/dashboard.yaml` to import.
 
+## 4.15.0
+_Contributed by [@wouterbouvy](https://github.com/wouterbouvy) — [#158](https://github.com/gitcodebob/marstek-venus-rs485-node-red/pull/158)._
+
+- **Feat: Anker SOLIX Solarbank Max AC and Solarbank 4 over local Modbus TCP**
+  * A new Home Assistant package talks to the battery directly over Modbus TCP (port `502`) and publishes the Fonske `marstek_m1_*` entities, so the HBC flows and dashboard work unchanged.
+  * No Anker cloud and no vendor HA integration required — enable **Settings → Third-Party Control Setting → Modbus TCP** in the Anker app and point `host:` at the device IP.
+  * Supports **Solarbank Max AC** and **Solarbank 4 E5000 Pro** (identical third-party register map). The Max AC is hardware-validated; the Solarbank 4 shares the same map.
+  * Control path: holding register `10064` selects third-party control (`3`) or self-consumption (`0`); holding `10071` carries the signed setpoint (charge negative, discharge positive). Setpoints are clamped to the lower of the HBC max helpers and the device max registers `10036` / `10038`.
+  * Battery power follows the HBC sign convention (charge positive, discharge negative); the raw Anker polarity stays available on `sensor.marstek_m1_battery_power_anker_raw`. The dashboard **M1 Power** tile shows battery activity, house load stays on `sensor.marstek_m1_load_power`.
+  * Install steps, safety notes and a hardware validation checklist are in the [Anker Solarbank README](home%20assistant/other-batteries/Anker-Solarbank/README.md).
+  * **Two gotchas**, both documented in that README: run only **one** Modbus client against the device — a second poller (EVCC, `ha-anker-solix-official`) fights over the setpoint — and do **not** set the PID gains to `0`, or Self-consumption never leaves `stop @ 0 W`.
+
+- **Docs: Anker SOLIX section restructured**
+  * `02-modbus-setup.md` now separates the local Modbus route (Max AC / Solarbank 4) from the SolarBank 3 Pro cloud bridge, and the connection-schema overview reflects the native package.
+  * `09-for-integrators.md` lists the native Modbus package as the preferred route for any battery with a documented local register map.
+  * `README.md` credits the community battery packages by Fonske, Jos1958 and @wouterbouvy.
+
+- **Files Changed:**
+  - `home assistant/other-batteries/Anker-Solarbank/anker_solarbank_m1_modbus_tcp.yaml`
+  - `home assistant/other-batteries/Anker-Solarbank/README.md`
+  - `home assistant/dashboard.yaml`
+  - `docs/02-modbus-setup.md`
+  - `docs/09-for-integrators.md`
+  - `README.md`
+  - `node-red/01 start-flow.json`
+  - `node-red/02 strategy-*.json`
+  - `node-red/all-flows-in-one-file.json`
+
+## 4.14.0
+- **Feat: Zonneplan quarter-hourly (15 min) prices**
+  * The Dynamic strategy now uses Zonneplan's quarter-hourly tariffs, giving four times the resolution to find price peaks and troughs.
+  * Nothing to configure: keep `Zonneplan` selected as data source and import the flow. No template sensor, no `template.yaml`, no dashboard change.
+  * The flow reads `sensor.zonneplan_current_quarter_hourly_electricity_tariff` and reshapes its `forecast` attribute itself — the price is nested in `price_tax_included.amount`, which cannot be addressed with a plain `value_key`. The reshaped list is handed to Cheapest Energy Hours through its `price_data` input.
+  * Falls back to the hourly `sensor.zonneplan_current_electricity_tariff` automatically when the quarter-hourly entity is not available, so older Zonneplan integrations keep working and upgrade by themselves later.
+  * **Requires Cheapest Energy Hours v6.0.0 or newer** — `price_data` does not exist in older versions and the template will report an unknown-argument error.
+  * Price table and ApexChart follow the resolution automatically; `Max cheap/expensive hours per day` keep counting in hours.
+  * Thanks to Mike da Spike and all Discord members for reporting this and providing a first work arounds.
+
+- **Files Changed:**
+  - `home assistant/dashboard.yaml`
+  - `node-red/02 strategy-dynamic-2.json`
+  - `node-red/all-flows-in-one-file.json`
+
+## 4.13.1
+- **Fix: Sell strategy no longer rounds down the energy reserve**
+  * The reserve threshold in the Sell strategy used a bitwise `|` instead of a logical `||`, which silently truncated the configured value to a whole number of kWh.
+  * A reserve of e.g. `2.5` kWh was applied as `2` kWh, and any reserve below `1` kWh was applied as `0` — so the battery discharged further than intended.
+  * Fractional reserves are now honoured exactly; the fallback to `0` only applies when no value is configured.
+
+- **Files Changed:**
+  - `home assistant/dashboard.yaml`
+  - `node-red/02 strategy-sell.json`
+  - `node-red/all-flows-in-one-file.json`
+
+## 4.13.0
+_Contributed by [@joma999](https://github.com/joma999) — [#141](https://github.com/gitcodebob/marstek-venus-rs485-node-red/pull/141)._
+
+- **Feat: Configurable EV Stop Trigger strategy**
+  * Added a selectable EV Stop Trigger strategy: `Full stop` or `Standby / peak shave`.
+  * Manual `Full stop` in the main strategy selector now takes precedence over the EV trigger strategy.
+  * Dashboard status and executing-flow display now reflect the strategy actually being applied.
+
+- **Fix: Peak shaving direction stability**
+  * Peak shaving now latches the import/export direction and limit at the moment of the real grid-limit violation.
+  * Prevents import peak shaving from flipping into export peak shaving during the release timeout after a load step change.
+  * Added a dashboard warning for very low import peak shave limits.
+
+- **Fix: Standby display on dashboard**
+  * `Standby / peak shave` now reports its user-facing strategy name to the dashboard while still using `Self-consumption` internally.
+  * Prevents the executing-flow field from showing misleading variants such as `Self-consumption (charge only)` while standby is active.
+
+- **Files Changed:**
+  - `home assistant/dashboard.yaml`
+  - `home assistant/packages/house_battery_control.yaml`
+  - `node-red/01 start-flow.json`
+  - `node-red/02 strategy-partials.json`
+  - `node-red/all-flows-in-one-file.json`
+  - `docs/06-advanced-features.md`
+
+## 4.12.0
+- **Feat: Timed strategy expands from 3 to 5 time periods**
+  * The Timed strategy now supports up to five daily time windows (periods A–E) instead of three, each with its own sub-strategy, on top of the baseline default strategy.
+  * Periods are added and removed via the dashboard — and the priority order stays "earliest matching period wins" (A > B > C > D > E > baseline).
+
+- **Files Changed:**
+  - `home assistant/dashboard.yaml`
+  - `home assistant/packages/house_battery_control.yaml`
+  - `node-red/02 strategy-timed.json`
+  - `node-red/all-flows-in-one-file.json`
+
+## 4.11.0
+- **Feat: Dynamic v2 is now the standard Dynamic strategy**
+  * The per-interval "Extreme-Pair Matching" algorithm (previously the "Dynamic 2" lab feature) replaces the old fixed "cheapest N hours / expensive M hours" block algorithm as the one and only Dynamic strategy.
+  * It evaluates every price interval individually, so it captures both a morning and an evening price peak in the same day, and guarantees a minimum spread per marked cycle.
+  * The single `Dynamic` strategy selector now runs the v2 flow (`02 strategy-dynamic-2.json`); the separate `Dynamic 2` selector option has been removed.
+
+- **Feat: HBC now resends the control mode every 5 mins**
+  * Some people report their battery switching to inpropper control modes due to external factors. HBC will try to correct this periodically.
+
+- **Fix: Battery priority rounding errors**
+  * Some people report that battery priority drifting to a non-integer number, e.g. 1.0001 or 2.00001. This is now fixed.
+
+- **Refactor: Deprecate the v1 Dynamic flow**
+  * `02 strategy-dynamic.json` has been moved to `node-red/deprecated/` for reference only.
+  * **Action required**: import the `02 strategy-dynamic-2.json` flow and re-import `dashboard.yaml`, then remove the old `Strategy Dynamic` (v1) tab from Node-RED.
+
+- **Tweak: Consolidate the Dynamic dashboard and remove v1-only entities**
+  * Dynamic now lives in the main `Timed/Dynamic` dashboard tab (the separate "Lab features" tab is gone).
+  * Removed v1-only Home Assistant entities: `Cheapest avg tariff is below` threshold, the `Avg cheapest tariff` / `Avg expensive tariff` / `Avg delta` inputs, the `Estimated profit per kWh` sensor, and the cheapest/spread threshold helper sensors.
+
+- **Docs: Restructure the Dynamic documentation**
+  * `05-setup-dynamic` is now the single, leading Dynamic guide — quick start, dashboard controls, use-case configurations, algorithm internals, and current limitations.
+  * `05-dynamic-v2` is kept as a redirect stub so existing links (dashboard, release notes) keep working.
+  * Added a new `For Integrators & Developers` page (`09-for-integrators.md`) covering the entities HBC expects from a battery and how to integrate other brands.
+
+- **Files Changed:**
+  - `home assistant/dashboard.yaml`
+  - `home assistant/packages/house_battery_control.yaml`
+  - `node-red/00 master-switch-flow.json`
+  - `node-red/01 start-flow.json`
+  - `node-red/02 strategy-dynamic-2.json`
+  - `node-red/all-flows-in-one-file.json`
+  - `node-red/deprecated/02 strategy-dynamic.json`
+
 ## 4.10.1
 - **Fix: Midnight price rollover in Dynamic 2 strategy**
   * At midnight, tomorrow's prices were not being promoted to today's prices, causing the strategy to use stale data on the new day.
