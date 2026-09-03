@@ -79,6 +79,20 @@ function twoVenusEPerPhase(overridesPerBattery = []) {
   );
 }
 
+// Four batteries with two of them sharing L3 — mirrors a common three-phase install
+// where the phases are unevenly populated.
+function fourBatteriesUnevenPhases(overridesPerBattery = []) {
+  const definitions = [
+    { id: 'M1', phase: 'L3' },
+    { id: 'M2', phase: 'L3', chargeMaxW: 2200, dischargeMaxW: 2200 },
+    { id: 'M3', phase: 'L2' },
+    { id: 'M4', phase: 'L1' },
+  ];
+  return definitions.map((def, index) =>
+    makeBattery({ ...def, ...(overridesPerBattery[index] || {}) })
+  );
+}
+
 function heterogeneousSystem(overridesPerBattery = []) {
   const definitions = [
     { id: 'M1', phase: 'L3', chargeMaxW: 2200, dischargeMaxW: 2500 },
@@ -98,5 +112,6 @@ module.exports = {
   singleVenusEThrottled,
   oneVenusEPerPhase,
   twoVenusEPerPhase,
+  fourBatteriesUnevenPhases,
   heterogeneousSystem,
 };

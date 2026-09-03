@@ -171,4 +171,19 @@ describe('Charge strategy integration', () => {
       { id: 'M1', mode: 'charge', power: 2500 },
     ]);
   });
+
+  it('does not declare the pack full when a battery reports no SoC', async () => {
+    // Every battery that reported is at its SoC ceiling, but one is unavailable and
+    // normalizes to null. Number(null) is 0, so an unguarded `soc >= soc_max` reads as
+    // 0 >= 0 and would call the pack full while that battery may be empty.
+    const home = oneVenusEPerPhase([{ soc: 100 }, { soc: 100 }, { soc: 100 }]);
+    home[1].soc = null;
+    home[1].soc_max = null;
+
+    const terminals = await runCharge(home);
+
+    assert.equal(terminals.length, 1);
+    assert.equal(terminals[0].charge.threshold_reached, false);
+  });
+
 });

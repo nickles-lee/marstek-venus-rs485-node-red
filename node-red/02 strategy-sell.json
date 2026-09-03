@@ -406,7 +406,7 @@
         "z": "4f294ee4c981e70a",
         "g": "3ddad8b8165e4a74",
         "name": "Min/max",
-        "func": "\n// Lower bound\nlet output = msg.sell.threshold_energy || 0; // kWh\noutput = Math.max(output, 0);\n\n// Upper bound\nlet max_reserve = 0; // kWh\nmsg.batteries.forEach(battery => {\n    max_reserve += (Number(battery.energy_max*battery.soc_max) - Number(battery.energy_max*battery.soc_min))/100; // kWh\n});\noutput = Math.min(output, max_reserve);\n\nnode.status({fill:\"blue\",shape:\"dot\",text:`${output}`});\n\n// Output\nmsg.payload = output;\n\nreturn msg;",
+        "func": "\n// Lower bound\nlet output = msg.sell.threshold_energy || 0; // kWh\noutput = Math.max(output, 0);\n\n// Upper bound\nlet max_reserve = 0; // kWh\nconst { isReading } = global.get(\"batteryTelemetry\");\nmsg.batteries.forEach(battery => {\n    // Skip batteries that did not report: one missing reading would otherwise turn the\n    // whole reserve into NaN, or silently count as 0 kWh once normalized to null.\n    if (!isReading(battery.energy_max) || !isReading(battery.soc_max) || !isReading(battery.soc_min)) return;\n    max_reserve += (battery.energy_max*battery.soc_max - battery.energy_max*battery.soc_min)/100; // kWh\n});\noutput = Math.min(output, max_reserve);\n\nnode.status({fill:\"blue\",shape:\"dot\",text:`${output}`});\n\n// Output\nmsg.payload = output;\n\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,

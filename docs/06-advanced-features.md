@@ -73,6 +73,19 @@ nav_order: 6
   - Optional per-phase grid power aliases can be configured in `packages/house_battery_control_config.yaml` as `sensor.p1_meter_l1_power`, `sensor.p1_meter_l2_power`, and `sensor.p1_meter_l3_power`. Leave them commented out if your setup is not three-phase.
   - Node-RED exposes configured phase meter values as `msg.grid_power_phase.L1`, `.L2`, and `.L3`, with missing or unreadable values set to `null`.
   - Built-in strategies still use aggregate control by default. Enable per-phase peak shaving to let peak shaving also react to phase-level power limits.
+- **Load concentration:** when no phase is overloaded, the requested power is assigned to as
+  few batteries as possible, in battery-priority order, rather than being split evenly.
+  Inverters are inefficient at a small fraction of their rating, so one battery at 800 W beats
+  four at 200 W. Batteries that are left over idle at 1 W and disconnect their relay once the
+  `Stop after Idle for Minutes` timer expires.
+  - Power is still shared across the batteries on a phase when per-phase peak shaving is
+    actively correcting that phase, and per-phase command limits are always respected.
+  - Which battery is filled first follows the `Prioritize battery` setting, and is reversed
+    for discharging when reverse discharge priority is on.
+- **Unavailable batteries:** a battery whose telemetry cannot be read is skipped rather than
+  treated as reporting `0`. It is excluded from load distribution, from the cumulative totals,
+  and from the "batteries are full" check, and the dashboard totals hold their last good value
+  until it reports again.
 - **3-Phase self-consumption:** if you require 0 W grid consumption on a per phase basis, the setup changes slightly. 
       
       Note: most homes get billed for the net total of all phases. If that is the case for you as well, ignore these instructions.
