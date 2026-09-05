@@ -9,7 +9,7 @@ function message({ load = 3500, power = 0, desired = 2500, phase = true, totalIm
     target: 'Charge', batteries: [makeBattery({ id: 'M1', phase: 'L1', power })],
     solutions: [{ id: 'M1', mode: desired >= 0 ? 'charge' : 'discharge', power: Math.abs(desired) }],
     grid_power: load + power, grid_power_phase: { L1: load + power, L2: 0, L3: 0 },
-    grid_power_limit_phase: 5500, phase_protection: { enabled: phase },
+    grid_power_limit_phase: 5750, phase_protection: { enabled: phase },
     grid_power_has_limit_import: totalImport, grid_power_limit_import: 5500,
     grid_power_has_limit_export: totalExport, grid_power_limit_export: 5500,
   };
@@ -29,15 +29,15 @@ describe('Shared protection recovery', () => {
     assert.equal(signed(out.solutions[0]), 2000);
     out = r.run(m, 9);
     assert.equal(signed(out.solutions[0]), 2000);
-    out = r.run(m, 1);
+    out = r.run(m, 2);
     assert.equal(signed(out.solutions[0]), 2100);
     m = message({ power: 2100, load: 2500 });
     out = r.run(m, 3);
     assert.equal(signed(out.solutions[0]), 2400);
     out = r.run(message({ power: 2400, load: 3000 }), 1);
-    // Decreasing headroom resets the wait even when there is still room.
+    // Entering the band holds the allowance; small headroom changes do not reset it.
     assert.equal(signed(out.solutions[0]), 2400);
-    assert.equal(bound(out).remaining_delay_s, 10);
+    assert.equal(bound(out).remaining_delay_s, 0);
   });
 
   it('tightens immediately on renewed overload and restarts the wait', () => {
@@ -59,7 +59,9 @@ describe('Shared protection recovery', () => {
       // Successful shaving is not evidence that the underlying overload vanished.
       out = r.run(request(6500, -1000), 1);
       assert.equal(signed(out.solutions[0]), direction * -1000);
-      out = r.run(request(3000, -1000), 10);
+      out = r.run(request(3000, -1000), 1);
+      assert.equal(signed(out.solutions[0]), direction * -1000);
+      out = r.run(request(3000, -1000), 11);
       assert.equal(signed(out.solutions[0]), direction * -900);
       for (let p = -800; p <= 200; p += 100) {
         out = r.run(request(3000, p - 100), 1);
@@ -148,6 +150,7 @@ describe('Shared protection recovery', () => {
     const m = message({ load: 3000, power: -1000 });
     m.target = 'Standby / peak shave';
     delete m.solutions;
+    r.run(m, 1);
     const out = r.run(m, 11);
     assert.equal(signed(out.solutions[0]), -900);
   });
@@ -159,7 +162,7 @@ describe('Shared protection recovery', () => {
       Object.assign(m.batteries[0], change);
       const out = r.run(m);
       assert.equal(signed(out.solutions[0]), 0);
-      assert.ok(out.protection_recovery.unmet_w >= 1000);
+      assert.ok(out.protection_recovery.unmet_target_w >= 1000);
     }
   });
 
@@ -207,7 +210,7 @@ describe('Shared protection recovery', () => {
     r.run(m);
     assert.equal(signed(r.run(m, 1).solutions[0]), 250);
     m.protection_recovery_settings = { delay_s: '', rate_w_per_s: null };
-    assert.deepEqual(r.run(m, 1).protection_recovery.settings, { delay_s: 10, rate_w_per_s: 100 });
+    assert.deepEqual(r.run(m, 1).protection_recovery.settings, { delay_s: 10, rate_w_per_s: 100, phase_target_w: 5500, phase_hysteresis_w: 100 });
   });
   it('allows normal charging to stop without inventing an export shave', () => {
     const r = new ProtectionRunner();
@@ -265,7 +268,9 @@ describe('Shared protection recovery', () => {
       m.batteries[0].power = 0;
       m.grid_power = direction * 3500;
       m.grid_power_phase.L1 = direction * 3500;
-      out = r.run(m, 9);
+      out = r.run(m, 1);
+      assert.equal(signed(out.solutions[1]), 0, 'start the stable-headroom wait after the reduction is measured');
+      out = r.run(m, 11);
       assert.equal(signed(out.solutions[1]), direction * 100);
     });
   }

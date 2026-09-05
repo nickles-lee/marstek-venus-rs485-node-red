@@ -435,6 +435,27 @@ input_number:
     mode: box
     icon: mdi:transmission-tower
 
+  # Phase operating target | leave a margin beneath the hard phase ceiling
+  house_battery_control_phase_target:
+    name: Phase operating target
+    min: 1
+    max: 25000
+    step: 1
+    initial: 5500
+    unit_of_measurement: "W"
+    mode: box
+    icon: mdi:target
+
+  house_battery_control_phase_hysteresis:
+    name: Phase target hysteresis (plus/minus)
+    min: 1
+    max: 1000
+    step: 1
+    initial: 100
+    unit_of_measurement: "W"
+    mode: box
+    icon: mdi:arrow-expand-horizontal
+
   # Protection recovery | shared by phase and whole-house import/export limits
   house_battery_control_recovery_delay:
     name: Protection recovery delay

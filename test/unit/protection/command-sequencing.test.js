@@ -35,7 +35,36 @@ describe('Ordered battery command transactions', () => {
     const r = new ProtectionRunner();
     r.global.set('lastBatteryCommands', { M1: { mode: 'discharge', power: 2000 } });
     const m = r.node('Set Batteries', msg(1900, 'discharge'));
-    assert.deepEqual(m.battery_command.calls.map(c => c.data), [{ value: 1900 }, { option: 'discharge' }]);
+    assert.deepEqual(m.battery_command.calls.map(c => c.data), [{ value: 1900 }]);
+  });
+
+  it('does not restart a direction handoff while old telemetry is still arriving', () => {
+    const r = new ProtectionRunner();
+    r.global.set('lastBatteryCommands', { M1: { mode: 'discharge', power: 2000 } });
+    function issue(message) {
+      const transaction = r.node('Set Batteries', message);
+      const calls = [];
+      while (true) {
+        const [service, complete] = r.node('Next battery command', transaction);
+        if (complete) break;
+        calls.push(structuredClone(service.payload));
+      }
+      return calls;
+    }
+    assert.equal(issue(msg(100)).length, 3, 'a real direction change clears power once');
+    assert.equal(r.global.get('lastBatteryCommands').M1.handoff_pending, true);
+    for (const power of [100, 200, 300]) {
+      const calls = issue(msg(power)); // still reports -2000 W
+      assert.ok(calls.every(c => c.action === 'number.set_value' && c.data.value === power));
+      assert.equal(r.global.get('lastBatteryCommands').M1.handoff_pending, true);
+    }
+    const observed = msg(300);
+    observed.batteries[0].power = 300;
+    assert.deepEqual(issue(observed), []);
+    assert.equal(r.global.get('lastBatteryCommands').M1.handoff_pending, false);
+    const reversal = msg(500, 'discharge');
+    reversal.batteries[0].power = 300;
+    assert.equal(issue(reversal).length, 3, 'a subsequent real reversal gets its own safe handoff');
   });
 
   it('invalidates uncertain commands and unlocks the cohort when a service fails', () => {

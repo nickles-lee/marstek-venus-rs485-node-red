@@ -4,6 +4,12 @@ All releases follow Semantic Versioning (SemVer). Every release provides a fresh
 ## 4.15.0
 _Contributed by [@wouterbouvy](https://github.com/wouterbouvy) — [#158](https://github.com/gitcodebob/marstek-venus-rs485-node-red/pull/158)._
 
+- **Fix: Direct charge throttling and stable phase hysteresis**
+  * Added a configurable phase operating target (default 5500 W) and ±100 W hysteresis, separate from the existing hard ceiling. Hold inside the band, correct directly toward the target above it, and recover gradually below it. Applies to phase import and export; aggregate limits retain their own behavior.
+  * A 5000 W charge with 3680 W of non-battery load now throttles directly to 1820 W for a 5500 W target. Known same-direction updates send only the power value; pending direction handoffs tolerate delayed telemetry without repeated zero/mode resets.
+  * Invalid target/band pairs retain the last valid configuration or use a conservative startup fallback. Effective settings, underlying load, headroom, and unmet target correction are included in diagnostics.
+  * Long simulations cover meter noise, delayed battery response, and EV load cycling. A 1 A-step charger may need more reserve than the 150 W above the default band's upper edge; a configurable 5400±100 W band leaves 250 W and permits full EV recovery in the simulation. Hardware verification remains necessary.
+
 - **Fix: Gradual recovery from charge throttling and peak shaving**
   * Shared signed command limits tighten immediately and recover after a configurable stable-headroom delay (default 10 s) at a configurable rate (default 100 W/s). Phase batteries share one allowance; aggregate protection shares an installation-wide allowance.
   * Protection survives strategy transitions and PID deadband, accounts for the batteries' measured contribution, and pauses recovery when required telemetry is unavailable. Full stop and battery eligibility limits take precedence; unmet correction is reported.
