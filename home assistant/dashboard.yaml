@@ -2023,18 +2023,23 @@ views:
               - entity: input_boolean.house_battery_control_has_phase_protection
               - entity: input_number.house_battery_control_max_phase_power
                 name: Max phase power
+              - entity: input_number.house_battery_control_recovery_delay
+                name: Recovery delay (phase and whole house)
+              - entity: input_number.house_battery_control_recovery_rate
+                name: Recovery rate (phase and whole house)
           - type: markdown
             content: >-
               <font color=grey><i>When enabled, configured L1/L2/L3 grid power
               sensors and phase-assigned batteries are used for per-phase
-              protection. (Dis)charge throttling is applied by
-              Self-consumption, Charge PV, Charge, Sell, and Dynamic/Dynamic 2
-              whenever they select those strategies. Forced phase relief
-              applies before every selected strategy except Full stop when the
-              phase overload is not caused by battery interaction. Custom
-              strategies that write battery commands directly must opt into the
-              shared phase command limits themselves. Leave disabled for
-              aggregate-only behavior.</i></font>
+              protection. All strategies returning battery solutions use shared
+              command protection; Full stop takes precedence. Reductions needed
+              for protection are immediate. Recovery waits for stable headroom
+              (default 10 seconds), then changes at most 100 W/s per phase,
+              shared by its batteries. Whole-house protection shares the same
+              rate across the installation. Missing readings pause recovery.
+              These recovery settings also apply with per-phase protection
+              disabled when whole-house limits are enabled. Custom strategies
+              writing directly to devices bypass shared protection.</i></font>
             text_only: true
             grid_options:
               columns: full

@@ -39,7 +39,7 @@ class FlowGraph {
     this.stateProvider = options.stateProvider || new StateProvider();
     this.templateProvider = options.templateProvider || new TemplateProvider();
     this.clock = options.clock || { now: () => Date.now() };
-    this.runner = new FunctionRunner({ captureStatus: false, captureWarnings: true, captureErrors: true, captureLogs: false });
+    this.runner = new FunctionRunner({ captureStatus: false, captureWarnings: true, captureErrors: true, captureLogs: false, clock: this.clock });
     this.maxDepth = 200;
     this.onVisit = options.onVisit;
   }

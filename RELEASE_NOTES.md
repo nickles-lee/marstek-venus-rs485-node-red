@@ -4,6 +4,14 @@ All releases follow Semantic Versioning (SemVer). Every release provides a fresh
 ## 4.15.0
 _Contributed by [@wouterbouvy](https://github.com/wouterbouvy) — [#158](https://github.com/gitcodebob/marstek-venus-rs485-node-red/pull/158)._
 
+- **Fix: Gradual recovery from charge throttling and peak shaving**
+  * Shared signed command limits tighten immediately and recover after a configurable stable-headroom delay (default 10 s) at a configurable rate (default 100 W/s). Phase batteries share one allowance; aggregate protection shares an installation-wide allowance.
+  * Protection survives strategy transitions and PID deadband, accounts for the batteries' measured contribution, and pauses recovery when required telemetry is unavailable. Full stop and battery eligibility limits take precedence; unmet correction is reported.
+  * Ordered mode/power transactions clear power before reversing direction, preventing an old setpoint from being applied in the new mode. Overlapping command cohorts cannot overtake each other.
+  * New dashboard controls are in Settings beside the phase limit and also apply to aggregate-only protection. Update the HA package and both the start and partial flows, or import the combined export.
+  * Multi-cycle regression tests cover the 2500/2500/5000 W charging scenario with an independent three-phase EV charger and delayed battery response. Physical peak current still requires installation testing.
+  * Rebuilt the combined export from the individual flows, aligning their node IDs. When upgrading from the old combined export, replace the old tabs instead of running duplicate controllers.
+
 - **Feat: Anker SOLIX Solarbank Max AC and Solarbank 4 over local Modbus TCP**
   * A new Home Assistant package talks to the battery directly over Modbus TCP (port `502`) and publishes the Fonske `marstek_m1_*` entities, so the HBC flows and dashboard work unchanged.
   * No Anker cloud and no vendor HA integration required — enable **Settings → Third-Party Control Setting → Modbus TCP** in the Anker app and point `host:` at the device IP.
@@ -19,6 +27,7 @@ _Contributed by [@wouterbouvy](https://github.com/wouterbouvy) — [#158](https:
   * `README.md` credits the community battery packages by Fonske, Jos1958 and @wouterbouvy.
 
 - **Files Changed:**
+  - `home assistant/packages/house_battery_control.yaml`
   - `home assistant/other-batteries/Anker-Solarbank/anker_solarbank_m1_modbus_tcp.yaml`
   - `home assistant/other-batteries/Anker-Solarbank/README.md`
   - `home assistant/dashboard.yaml`

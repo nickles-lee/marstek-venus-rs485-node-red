@@ -173,7 +173,7 @@ These three strategies share a single Node-RED flow (`02 strategy-partials.json`
 **Flow:** `02 strategy-partials.json`
 
 - Thresholds: import limit and export limit (W), each independently toggleable. See [Grid Power Limits](/06-advanced-features#grid-power-limits).
-- Hysteresis: peak-shaving releases ~10 s after grid power returns below the limit (prevents chatter).
+- Recovery: after stable headroom for 10 s, peak-shaving support unwinds at 100 W/s by default. Both settings are configurable; phase batteries share the phase allowance and whole-house protection shares an installation-wide allowance. Renewed overload tightens protection immediately.
 - This is the only strategy where the battery is *exclusively* a peak-shaver — other strategies peak-shave on top of their normal behavior.
 
 ---

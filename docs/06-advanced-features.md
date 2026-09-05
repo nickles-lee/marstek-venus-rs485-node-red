@@ -117,7 +117,9 @@ Controls grid import/export thresholds for `peak shaving` functionality.
 - **Import limit:** Maximum power to draw from the grid (example: 16A × 230V = 3680W for CAPTAR contracts)
 - **Export limit:** Maximum power to feed back to the grid (example: 3000W if grid connection has export limits)
 - **Max phase power:** Shared per-phase safety threshold. This value is exposed to Node-RED as `msg.grid_power_limit_phase` and is used by per-phase peak shaving when enabled.
-- **Per-phase peak shaving:** Optional protection that uses configured L1/L2/L3 grid power sensors and battery phase assignments. Charge, Sell, Charge PV, Self-consumption, and Dynamic strategies that select them cap new battery commands against available phase headroom first; if limiting battery interaction is not enough, peak shaving reduces the overloaded phase before any strategy except Full stop is executed. Phase meter aliases must report power in watts; current-only sensors must be converted in `house_battery_control_config.yaml`. Missing phase sensors, unassigned batteries, or the feature being disabled keep the existing aggregate-only behavior. Unavailable batteries are treated as 0W assignable capacity, so remaining batteries on the same phase are asked to carry the correction.
+- **Per-phase peak shaving:** Optional protection using configured L1/L2/L3 grid power sensors and battery phase assignments. A shared controller limits the final battery solutions returned by every strategy except Full stop. It reduces battery interaction first and supplies corrective charging/discharging where needed. Phase meter aliases must report watts; convert current-only sensors in `house_battery_control_config.yaml`. Unassigned batteries cannot correct a specific phase. Unavailable batteries have zero assignable capacity; the controller asks eligible batteries on the same phase to carry the correction.
+- **Recovery delay:** Stable-headroom wait before protection relaxes; default **10 seconds**, adjustable from **0–120 seconds**.
+- **Recovery rate:** Maximum relaxation after the wait; default **100 W/s**, adjustable from **10–1000 W/s**. Batteries on a phase share this allowance. Whole-house import/export protection shares one allowance across the installation; both sets of constraints apply when enabled together. These settings apply to charge/discharge throttling and withdrawing peak-shaving support.
 - **Configuration:** Adjust from the "Settings" tab in the Home Assistant dashboard
 
 ### Charge / Sell Power Mode
@@ -132,9 +134,12 @@ Peak Shaving helps reduce import and export peaks on your grid connection by int
 **How it works:**
 - When grid power exceeds your configured limits, Peak Shaving activates automatically
 - Your batteries discharge (during import peaks) or charge (during export peaks) to keep grid power within limits
-- The import/export direction and matching limit are locked in when the limit violation is detected, so a short battery response overshoot does not flip an import shave into an export shave during the release timeout
+- The controller subtracts measured battery power from measured grid power to estimate the underlying load. Bringing the meter below its limit by shaving does not make the required support disappear.
 - Peak Shaving takes control across all strategies, allowing them to continue working while respecting power limits
-- Peak Shaving releases automatically once grid power returns to normal for a short duration (timeout period)
+- Required reductions take effect immediately. Protection relaxes only after the recovery delay, then at the configured rate. Signed power bounds also govern withdrawing discharge support, crossing zero, and resuming charging. Strategy changes do not reset these bounds.
+- Missing required meter or battery-power readings pause the affected recovery restriction. Valid phases remain protected. When readings return, a new stable-headroom wait begins. An unavailable toggle retains its previous setting; explicitly switching a protection feature off removes its bounds.
+- On deploy/restart or battery reassignment, affected bounds initialize conservatively from measured output and current headroom. Recovery cannot accumulate unused allowance: a single evaluation permits at most three seconds of the configured rate, and unobserved battery responses cannot repeatedly increase a pending command. Moving load between batteries also waits for measured reductions before spending that headroom on another battery.
+- Mode changes clear both directional power setpoints before changing mode, then apply the new limited power. Service calls and battery command cohorts run in order. A failed service call unlocks the cohort and invalidates the uncertain command so the next evaluation retries from telemetry.
 
 **Use cases:**
 - **Capacity tariffs (CAPTAR):** Reduce billing costs by limiting maximum import power
@@ -154,5 +159,13 @@ Peak Shaving helps reduce import and export peaks on your grid connection by int
 - Requires available battery capacity:
   - Import peak shaving requires the battery to have charge available (not empty)
   - Export peak shaving requires the battery to have room to charge (not full)
-- Charge and Sell strategies will peak shave AFTER reaching their primary goals (desired SoC or sell target)
-- Lack of available capacity isn't explicitly shown to the user (must be inferred from battery state)
+- Charge and Sell are protected while pursuing their goals, as well as after switching to another strategy.
+- Unmet correction is reported in the controller node status and logs when battery capacity, SoC, availability, or conflicting limits prevent full correction.
+- Recovery settings govern software commands. Physical grid peaks still depend on meter latency, battery response, other load controllers, and available capacity. HA service completion is not confirmation that the battery has reached its setpoint.
+- Custom strategies must return `msg.solutions` through the start flow to receive shared command protection. Direct device writes bypass it. Calling a partial independently, without the start flow, retains its legacy timer behavior.
+
+**Diagnostics and updates:**
+- `msg.protection_recovery.settings` contains normalized `delay_s` and `rate_w_per_s`. Each entry in `bounds` names its phase (or `total`) and direction, signed raw/effective bound, applied power, state, remaining delay, reason, and unmet watts. Import bounds are upper limits; export bounds are lower limits, with charging positive and discharging negative.
+- Existing `msg.phase_protection.command_limit_by_phase` fields remain available for strategy allocation. The final shared controller enforces the additional signed recovery restrictions.
+- Update the Home Assistant package and dashboard, plus both **01 start-flow** and **02 strategy-partials** (or the combined export). Missing new helpers fall back to 10 seconds and 100 W/s. The rebuilt combined export now uses the individual flows' node IDs. If upgrading from the older combined export, replace its old tabs when importing rather than keeping both sets active.
+- Before relying on hardware behavior, record phase power and battery commands during a staged repeat of the EV charging scenario. Start at reduced loads, verify immediate throttling and gradual recovery, then repeat at the intended load. The automated simulation uses a 5750 W limit (25 A at nominal 230 V), requests of 2500/2500/5000 W, and an independent 16 A three-phase charger; it cannot establish the physical peak current of a particular installation.

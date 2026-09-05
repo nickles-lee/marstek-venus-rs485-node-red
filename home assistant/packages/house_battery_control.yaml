@@ -435,6 +435,27 @@ input_number:
     mode: box
     icon: mdi:transmission-tower
 
+  # Protection recovery | shared by phase and whole-house import/export limits
+  house_battery_control_recovery_delay:
+    name: Protection recovery delay
+    min: 0
+    max: 120
+    step: 1
+    initial: 10
+    unit_of_measurement: "s"
+    mode: box
+    icon: mdi:timer-sand
+
+  house_battery_control_recovery_rate:
+    name: Protection recovery rate
+    min: 10
+    max: 1000
+    step: 10
+    initial: 100
+    unit_of_measurement: "W/s"
+    mode: box
+    icon: mdi:speedometer-slow
+
   # Strategy charge | desired energy reserve (effective energy available excl. cut-off energies)
   # old name: house_battery_strategy_timed_target_energy
   house_battery_strategy_charge_target_energy:

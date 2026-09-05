@@ -19,6 +19,7 @@ class FunctionRunner {
       captureWarnings: options.captureWarnings !== false,
       captureErrors: options.captureErrors !== false,
       captureLogs: options.captureLogs !== false,
+      clock: options.clock,
     };
     this.reset();
   }
@@ -88,7 +89,7 @@ class FunctionRunner {
     const flowStore = flow || new ContextStore();
     const globalStore = global || new ContextStore();
 
-    const fn = new Function('msg', 'node', 'context', 'flow', 'global', 'RED', code);
+    const fn = new Function('msg', 'node', 'context', 'flow', 'global', 'RED', 'Date', code);
 
     const nodeName = typeof nodeRef === 'string'
       ? nodeRef
@@ -112,7 +113,12 @@ class FunctionRunner {
 
     const REDMock = { util: RED };
 
-    return fn.call(thisObj, msg, nodeMock, contextStore, flowStore, globalStore, REDMock);
+    const clock = this.options.clock;
+    const ClockDate = clock ? class extends Date {
+      constructor(...args) { super(...(args.length ? args : [clock.now()])); }
+      static now() { return clock.now(); }
+    } : Date;
+    return fn.call(thisObj, msg, nodeMock, contextStore, flowStore, globalStore, REDMock, ClockDate);
   }
 }
 

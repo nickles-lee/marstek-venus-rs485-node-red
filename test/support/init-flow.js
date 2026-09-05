@@ -9,9 +9,10 @@ class Initializer {
    * @param {ContextStore} [options.global]
    * @param {boolean} [options.debugMode=false]
    */
-  constructor({ global: globalStore, debugMode = false } = {}) {
+  constructor({ global: globalStore, debugMode = false, clock } = {}) {
     this.global = globalStore || new ContextStore();
     this.debugMode = debugMode;
+    this.clock = clock;
   }
 
   /**
@@ -19,7 +20,7 @@ class Initializer {
    * `phasePowerAllocator`, `logger`, and `unhandledException` as globals.
    */
   initialize() {
-    const runner = new FunctionRunner({ captureStatus: false, captureWarnings: false, captureErrors: false, captureLogs: false });
+    const runner = new FunctionRunner({ captureStatus: false, captureWarnings: false, captureErrors: false, captureLogs: false, clock: this.clock });
     runner.run({
       flowFile: 'node-red/01 start-flow.json',
       node: 'Custom logger',
